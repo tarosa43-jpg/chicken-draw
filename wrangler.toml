@@ -1,0 +1,15 @@
+name = "chicken-draw"
+main = "dist/server/index.js"
+compatibility_date = "2026-05-15"
+
+[assets]
+directory = "dist/client"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chicken-draw-db"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "drizzle"
+
+[observability]
+enabled = true
