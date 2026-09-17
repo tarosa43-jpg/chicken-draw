@@ -46,6 +46,20 @@ function reply(data: unknown, status = 200, cookie?: string) {
     },
   });
 }
+function forwardedValue(req: Request, name: string) {
+  return req.headers.get(name)?.split(',')[0]?.trim();
+}
+function allowedRequestOrigin(req: Request) {
+  const requestUrl = new URL(req.url);
+  const forwardedHost = forwardedValue(req, 'x-forwarded-host');
+  const forwardedProto = forwardedValue(req, 'x-forwarded-proto');
+  const host = forwardedHost || req.headers.get('host');
+  const proto = forwardedProto || requestUrl.protocol.slice(0, -1);
+  const origins = new Set([requestUrl.origin]);
+  if (host && (proto === 'http' || proto === 'https'))
+    origins.add(`${proto}://${host}`);
+  return origins;
+}
 async function presenceFor(code: string) {
   const result = await database()
     .prepare('SELECT player, seen FROM presence WHERE code = ?')
@@ -111,7 +125,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const origin = req.headers.get('origin');
-    if (origin !== new URL(req.url).origin)
+    if (!origin || !allowedRequestOrigin(req).has(origin))
       return reply({ error: 'このページから操作してください' }, 403);
     if (Number(req.headers.get('content-length') ?? 0) > 8000)
       return reply({ error: 'リクエストが大きすぎます' }, 413);
