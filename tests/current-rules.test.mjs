@@ -33,8 +33,10 @@ test('two players: seventh angel immediately wins; second round starts from zero
 test('first skull can continue at -3 and the next turn has no extra protection',()=>{
  const r=game(3);const p=r.players[0];forceSkullDraw(r);
  assert.equal(r.initialBurst.by,'a');assert.equal(p.status,'alive');assert.equal(p.score,0);
+ assert.equal(r.events.findLast(e=>e.draw).draw.burst,false);
  act(r,'a',{type:'initialBurstChoice',choice:'continue'});
  assert.equal(p.score,-3);assert.equal(p.status,'alive');assert.notEqual(r.turn,'a');
+ assert.equal(r.events.findLast(e=>e.draw).draw.burst,false);
  r.turn='a';r.chosenTarget=null;r.deadline=Date.now()+120000;r.players[1].hand[1]={value:0,skull:true};
  draw(r,'a',1,'b');
  assert.equal(p.status,'burst');
