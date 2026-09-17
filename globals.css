@@ -213,16 +213,15 @@ label {
 [data-slot='dialog-content'],
 [data-slot='alert-dialog-content'] {
   position: fixed !important;
-  top: 50% !important;
-  right: auto !important;
-  bottom: auto !important;
-  left: 50% !important;
+  inset: 0 !important;
   z-index: 200 !important;
   width: min(calc(100vw - 32px), 740px) !important;
+  height: max-content !important;
   max-height: 85dvh !important;
   margin: 0 !important;
+  margin: auto !important;
   overflow: auto !important;
-  transform: translate(-50%, -50%) !important;
+  transform: none !important;
 }
 .rules-modal p {
   font-size: 14px;
