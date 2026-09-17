@@ -1181,6 +1181,28 @@ label {
 .screen-overlay p {
   margin: 0;
 }
+.initial-burst-title {
+  color: #ffd397;
+}
+.initial-burst-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  width: min(100%, 560px);
+}
+.initial-burst-actions button {
+  min-height: 76px;
+  flex-direction: column;
+  background: #f1cb80;
+  color: #322619;
+}
+.initial-burst-actions button:last-child {
+  background: #dcf991;
+}
+.initial-burst-actions small {
+  font-size: 12px;
+  font-weight: 500;
+}
 .ng-lineup {
   display: flex;
   gap: 18px;

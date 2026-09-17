@@ -203,7 +203,9 @@ export default function Home() {
     }
     if (added.length) setQueue((old) => [...old, ...added]);
   }, [s?.code, s?.events.at(-1)?.id]);
-  const shown = queue[0];
+  const shown = queue[0]
+    ? s?.events.find((event) => event.id === queue[0].id) ?? queue[0]
+    : undefined;
   const resultAck=useRef('');
   useEffect(()=>{
     if(s?.phase!=='final'||queue.length||ngIntro)return;
@@ -213,6 +215,7 @@ export default function Home() {
   },[s?.phase,s?.round,queue.length,ngIntro,send]);
   useEffect(() => {
     if (!shown || ngIntro) return;
+    if (shown.draw?.initialBurstChoice) return;
     setRevealStage(0);
     if (shown.effect) playSound('item');
     else playSound('draw');
@@ -231,7 +234,7 @@ export default function Home() {
       clearTimeout(flip);
       clearTimeout(timer);
     };
-  }, [shown?.id, ngIntro]);
+  }, [shown?.id, shown?.draw?.initialBurstChoice, ngIntro]);
   useEffect(() => {
     const ctx = (
       document as Document & {
@@ -341,6 +344,9 @@ export default function Home() {
               </p>
               <p>
                 天使の獲得枚数を競います。2人対戦は7枚、3人対戦は11枚、4人対戦は15枚に到達するとラウンド勝利。得点倍化はそのターンの最初の1枚だけを倍にします。1または3ラウンドを選択できます。3ラウンドでは2勝先取で試合終了。同枚数はDrawで勝利数は増えません。最終順位は勝利数、累計ドロー枚数の順で決め、それも同じなら同順位です。
+              </p>
+              <p>
+                ラウンドで最初に引いた1枚がドクロだった場合は、通常どおり0点で脱落するか、−3点でラウンドを継続するかを選べます。継続を選ぶとそのターンは終了し、次のターンから通常どおりプレイします。
               </p>
               <div className="rule-items">
                 {Object.entries(ITEM_INFO).map(([key, info]) => (
@@ -566,7 +572,7 @@ export default function Home() {
           turnBanner={turnBanner}
           resultReady={!ngIntro && queue.length === 0}
           seconds={seconds}
-          busy={busy || !!shown?.draw}
+          busy={busy || (!!shown?.draw && !shown.draw.initialBurstChoice)}
           send={send}
         />
       )}
