@@ -438,12 +438,13 @@ export default function GameTable({ s, busy, seconds, send, resultReady, effect,
           {event?.draw && (
             <div className={'screen-overlay draw-reveal ' + (event.draw.burst && revealStage ? 'burst-scene' : '')} role="alert">
               <p className="eyebrow">{s.players.find((p) => p.id === event.draw?.by)?.name} が引いたカード</p>
+              {event.draw.initialBurstChoice && <><h2 className="initial-burst-title">初手バースト！</h2><p>このままバーストしますか？</p></>}
               {event.draw.counter && <RouletteRoll key={event.id} result={event.draw.counter.face} labels={event.draw.counter.options.map(id => id ? (s.players.find(p => p.id === id)?.name ?? 'プレイヤー') : 'セーフ')} />}
               <div className={`revealed-card${event.draw.angel ? ' angel-reveal' : ''}`} key={revealStage}>
                 <Feather />
                 <b>{event.draw.skull ? <Skull /> : event.draw.angel ? '✦' : event.draw.value}</b>
               </div>
-              {event.draw.burst ? <><Flame className="burst-flame" /><h2 className="burst-title">BURST</h2><p className="burst-loss">ラウンド獲得枚数 <b>0</b></p><p>このラウンドから脱落</p></> : event.draw.counter ? <h2>{event.draw.counter.victim ? 'ランダムガード · バースト' : 'ランダムガード · ターン続行'}</h2> : event.draw.dud ? <><h2>不発弾</h2><p>バーストなし・獲得枚数なし</p></> : event.draw.finished ? <><h2>確定上がり！</h2><p>目標枚数に到達しました</p></> : <><h2>{event.draw.substitute ? 'バースト回避 · ターン終了' : event.draw.endedTurn && !event.draw.shield ? '終了トラップ · ターン終了' : event.draw.shield ? 'ドクロガード 発動' : event.draw.blessing ? '天使の加護 発動 · ターン続行' : `+${event.draw.points}枚`}</h2>{event.draw.shield && <p>ドクロを防ぎました。このターンの獲得枚数は半分になります。</p>}{event.draw.blessing && <p>バーストを防ぎ、得点減少なしでターンを続行します。</p>}</>}
+              {event.draw.initialBurstChoice ? event.draw.by === s.me ? <div className="initial-burst-actions"><button disabled={busy} onClick={() => void send('initialBurstChoice', { choice: 'burst' })}>バーストする<small>0点・ラウンド脱落</small></button><button disabled={busy} onClick={() => void send('initialBurstChoice', { choice: 'continue' })}>−3点で継続する<small>このターン終了・次ターンから再開</small></button></div> : <p>初手バーストの判定を待っています。</p> : event.draw.burst ? <><Flame className="burst-flame" /><h2 className="burst-title">BURST</h2><p className="burst-loss">ラウンド獲得枚数 <b>0</b></p><p>このラウンドから脱落</p></> : event.draw.counter ? <h2>{event.draw.counter.victim ? 'ランダムガード · バースト' : 'ランダムガード · ターン続行'}</h2> : event.draw.dud ? <><h2>不発弾</h2><p>バーストなし・獲得枚数なし</p></> : event.draw.finished ? <><h2>確定上がり！</h2><p>目標枚数に到達しました</p></> : <><h2>{event.draw.substitute ? 'バースト回避 · ターン終了' : event.draw.endedTurn && !event.draw.shield ? '終了トラップ · ターン終了' : event.draw.shield ? 'ドクロガード 発動' : event.draw.blessing ? '天使の加護 発動 · ターン続行' : `+${event.draw.points}枚`}</h2>{event.draw.shield && <p>ドクロを防ぎました。このターンの獲得枚数は半分になります。</p>}{event.draw.blessing && <p>バーストを防ぎ、得点減少なしでターンを続行します。</p>}</>}
             </div>
           )}
           {celebrating && <div className="round-victory" key={s.round} role="status">
