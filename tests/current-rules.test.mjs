@@ -133,13 +133,30 @@ test('random guard roulette selects self or safe',t=>{
   assert.equal(roll.face,sample);assert.equal(roll.victim,sample===0?'a':undefined);
   assert.deepEqual(roll.options,['a','']);
   if(roll.victim) assert.equal(r.players.find(p=>p.id===roll.victim).status,'burst');
+    if (sample === 1) assert.equal(r.turn, 'a');
   for(const p of r.players)assert.deepEqual(view(r,p.id,{}).events.findLast(e=>e.draw).draw.counter,roll);
  }
 });
 
+test('angel blessing prevents a skull without penalty or ending the turn',()=>{
+ const r=game(3);const p=r.players[0];p.items=['blessing'];p.score=4;
+ r.players[1].hand[0]={value:0,skull:true};
+ draw(r);
+ const event=r.events.findLast(e=>e.draw).draw;
+ assert.equal(p.status,'alive');assert.equal(p.score,4);assert.equal(r.turn,'a');
+ assert.equal(event.blessing,true);assert.equal(event.shield,false);assert.equal(event.burst,false);assert.equal(event.endedTurn,false);
+});
+
+test('nominate item is announced publicly without exposing private details',()=>{
+ const r=game(3);r.players[0].items=['nominate'];
+ act(r,'a',{type:'item',item:0,target:'b'});
+ const notice=view(r,'b',{}).events.findLast(e=>e.effect);
+ assert.deepEqual(notice.effect,{by:'a',item:'notice',text:'A が「指名変更」を使用しました'});
+});
+
 test('counter is in the normal item pool for three-player games',()=>{
  const pool=itemPool(player('pool','Pool'));
- for(const item of ITEMS) assert.equal(pool.filter(candidate=>candidate===item).length,4);
+ for(const item of ITEMS) assert.equal(pool.filter(candidate=>candidate===item).length,item==='blessing'?0:4);
 });
 
 test('counter conflicts with defenses in either order and ignores dud',()=>{

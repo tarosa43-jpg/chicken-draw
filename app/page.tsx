@@ -1,15 +1,11 @@
 'use client';
 import { playSound, unlockSound, setSoundVolume } from '@/lib/sound';
-import DiceRoll from '@/components/dice-roll';
-import RouletteRoll from '@/components/roulette-roll';
 import { Skull } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Feather,
-  Flame,
   Check,
   ArrowRight,
-  Gift,
   RotateCcw,
   X,
   BookOpen,
@@ -37,7 +33,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog';
-import GameTable, { ItemIcon } from '@/components/game-table';
+import GameTable from '@/components/game-table';
 import { ITEM_INFO } from '@/lib/item-info';
 import type { view, Event } from '@/lib/game';
 type State = ReturnType<typeof view>;
@@ -344,7 +340,7 @@ export default function Home() {
                 初期アイテムは全ラウンド2個、毎ターン1個追加。ドクロガードは使用したターンだけ有効で、ドクロを防いでもそのターンは終了します。終了トラップは引いた人のターンを終了します。
               </p>
               <p>
-                天使の獲得枚数を競います。2人対戦は7枚、3人対戦は9枚、4人対戦は11枚に到達するとラウンド勝利。得点倍化はそのターンの最初の1枚だけを倍にします。1または3ラウンドを選択できます。3ラウンドでは2勝先取で試合終了。同枚数はDrawで勝利数は増えません。最終順位は勝利数、累計ドロー枚数の順で決め、それも同じなら同順位です。
+                天使の獲得枚数を競います。2人対戦は7枚、3人対戦は11枚、4人対戦は15枚に到達するとラウンド勝利。得点倍化はそのターンの最初の1枚だけを倍にします。1または3ラウンドを選択できます。3ラウンドでは2勝先取で試合終了。同枚数はDrawで勝利数は増えません。最終順位は勝利数、累計ドロー枚数の順で決め、それも同じなら同順位です。
               </p>
               <div className="rule-items">
                 {Object.entries(ITEM_INFO).map(([key, info]) => (
@@ -565,6 +561,9 @@ export default function Home() {
         <GameTable
           s={s}
           effect={shown?.effect}
+          event={shown}
+          revealStage={revealStage}
+          turnBanner={turnBanner}
           resultReady={!ngIntro && queue.length === 0}
           seconds={seconds}
           busy={busy || !!shown?.draw}
@@ -598,90 +597,6 @@ export default function Home() {
           <button onClick={() => setNgIntro(false)}>
             確認した <Check />
           </button>
-        </div>
-      )}
-      {s?.phase==='play' && !ngIntro && !shown && turnBanner && (
-        <div className="screen-overlay turn-intro" role="status">
-          <p className="eyebrow">NEXT TURN</p>
-          <h2>
-            {s?.turn === s?.me ? 'あなたのターン' : `${turnBanner} のターン`}
-          </h2>
-          <p>アイテムを1個追加。次の一手を決めよう。</p>
-        </div>
-      )}
-      {shown?.effect && !ngIntro && (
-        <div
-          className={
-            'effect-banner ' +
-            (['dice','shuffle'].includes(shown.effect.item) ? 'dice-effect' : '')
-          }
-          role="status"
-        >
-          <span className="effect-icon">
-            {['dice','shuffle'].includes(shown.effect.item) ? (<DiceRoll />) : (shown.effect.item === 'deal' || shown.effect.item === 'notice') ? (
-              <Gift />
-            ) : (
-              <ItemIcon item={shown.effect.item} />
-            )}
-          </span>
-          <div>
-            <b>
-              {shown.effect.item === 'notice' ? 'アイテム使用' : shown.effect.item === 'deal'
-                ? 'ITEM +1'
-                : ITEM_INFO[shown.effect.item].name}
-            </b>
-            <p>{shown.effect.text}</p>
-          </div>
-        </div>
-      )}
-      {shown?.draw && (
-        <div
-          className={
-            'screen-overlay draw-reveal ' +
-            (shown.draw.burst && revealStage ? 'burst-scene' : '')
-          }
-          role="alert"
-        >
-          <p className="eyebrow">
-            {s?.players.find((p) => p.id === shown.draw?.by)?.name}{' '}
-            が引いたカード
-          </p>
-          {shown.draw.counter && <RouletteRoll key={shown.id} result={shown.draw.counter.face} labels={shown.draw.counter.options.map(id=>id ? (s?.players.find(p=>p.id===id)?.name ?? 'プレイヤー') : 'セーフ')} />}
-          <div className={`revealed-card${shown.draw.angel ? ' angel-reveal' : ''}`} key={revealStage}>
-            <Feather />
-            <b>
-              {shown.draw.skull ? (
-                <Skull />
-              ) : shown.draw.angel ? (
-                '✦'
-              ) : (
-                shown.draw.value
-              )}
-            </b>
-          </div>
-          {shown.draw.counter ? <h2>ランダムガード · ターン終了</h2> : shown.draw.dud ? <><h2>不発弾</h2><p>バーストなし・獲得枚数なし</p></> : shown.draw.finished ? (<><h2>確定上がり！</h2><p>目標枚数に到達しました</p></>) : shown.draw.burst ? (
-            <>
-              <Flame className="burst-flame" />
-              <h2 className="burst-title">BURST</h2>
-              <p className="burst-loss">
-                ラウンド獲得枚数 <b>0</b>
-              </p>
-              <p>このラウンドから脱落</p>
-            </>
-          ) : (
-            <>
-              <h2>
-                {shown.draw.substitute ? 'バースト回避 · ターン終了' : shown.draw.endedTurn && !shown.draw.shield
-                  ? '終了トラップ · ターン終了'
-                  : shown.draw.shield
-                    ? 'ドクロガード 発動'
-                    : `+${shown.draw.points}枚`}
-              </h2>
-              {shown.draw.shield && (
-                <p>ドクロを防ぎました。このターンの獲得枚数は半分になります。</p>
-              )}
-            </>
-          )}
         </div>
       )}
     </main>

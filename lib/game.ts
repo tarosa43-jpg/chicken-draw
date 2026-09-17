@@ -71,6 +71,7 @@ export type Event = {
     dudConsumedShield?: boolean;
     substitute?: boolean;
     dud?: boolean;
+    blessing?: boolean;
     counter?: {face:number; victim?:string; options:string[]};
     points: number;
     finished?: boolean;
@@ -78,6 +79,7 @@ export type Event = {
 };
 export type Room = {
   rulesVersion?: number;
+  blessingPending?: boolean;
   totalRounds?: number;
   turnPoints?: number;
   guardPenalty?: boolean;
@@ -235,6 +237,7 @@ export function returnToLobby(r: Room) {
 }
 export function itemPool(p: Player, exclude?: Item) {
   return ITEMS.flatMap((item) =>
+    item === 'blessing' ||
     item === exclude ||
     ((item === 'double' && (p.doubleGranted || p.items.includes('double') || p.doubled)) ||
       (item === 'shield' && (p.shieldUsed || p.items.includes('shield') || p.shield)) ||
@@ -243,9 +246,10 @@ export function itemPool(p: Player, exclude?: Item) {
       : (Array(4).fill(item) as Item[]),
   );
 }
-function grantItem(p: Player, exclude?: Item, playerCount = 4) {
-  if (!p.items.includes('blessing') && random(100) < 1) {
+function grantItem(r: Room, p: Player, exclude?: Item, playerCount = 4) {
+  if (r.blessingPending) {
     p.items.push('blessing');
+    r.blessingPending = false;
     return 'blessing' as Item;
   }
   const pool = itemPool(p, exclude).filter(item => playerCount !== 2 || item !== 'nominate');
@@ -284,7 +288,7 @@ function beginTurn(r: Room) {
   p.shield = false;
   p.substituteSlot = null;
   p.counter = false;
-  grantItem(p, undefined, r.players.length);
+  grantItem(r, p, undefined, r.players.length);
   effect(r, p.id, 'deal', `${p.name} にアイテムを1個追加しました`);
 }
 function startRound(r: Room) {
@@ -322,7 +326,7 @@ function startRound(r: Room) {
     p.doubled = false;
     p.doubleUsed = false;
     p.peeks = [];
-    for (let i=0;i<2;i++) grantItem(p, undefined, r.players.length);
+    for (let i=0;i<2;i++) grantItem(r, p, undefined, r.players.length);
   }
   log(r, `ROUND ${r.round} — 手札を配りました`);
 }
@@ -342,7 +346,7 @@ function setupProgress(r: Room) {
 }
 function finishRound(r: Room) {
   const alive = r.players.filter((p) => p.status === 'alive');
-  const goal = r.players.length === 2 ? 7 : r.players.length === 3 ? 9 : 11;
+  const goal = r.players.length === 2 ? 7 : r.players.length === 3 ? 11 : 15;
   const reached = r.players.find(p => p.status !== 'burst' && p.score >= goal);
   const contenders = r.players.filter(p => p.status !== 'burst');
   if (!reached && contenders.length > 1 && alive.some(p => (p.completedTurns ?? 0) < 2)) return false;
@@ -501,6 +505,7 @@ export function act(r: Room, id: string, a: Action) {
       q.draws = 0;
       q.earned = 0;
     }
+    r.blessingPending = random(100) === 0;
     startRound(r);
     return;
   }
@@ -590,6 +595,7 @@ export function act(r: Room, id: string, a: Action) {
     const hit = !!c.skull && !c.dud;
     let counterResult: {face:number; victim?:string; options:string[]} | undefined;
     let protectedHit = false;
+    let blessingProtected = false;
     let substituted = false;
     let dudConsumedShield = false;
     let points = 0;
@@ -632,7 +638,7 @@ export function act(r: Room, id: string, a: Action) {
         log(r, `${p.name} のドクロガードが発動。バーストを防ぎました。このターンの獲得点は半分になります`);
       } else if (p.items.includes('blessing')) {
         p.items.splice(p.items.indexOf('blessing'), 1);
-        protectedHit = true;
+        blessingProtected = true;
         points = 0;
         log(r, `${p.name} の天使の加護が発動し、バーストを防ぎました`);
       } else {
@@ -642,7 +648,7 @@ export function act(r: Room, id: string, a: Action) {
     } else if (!c.dud) {
       points = (p.doubled && r.drawnThisTurn === 1 ? 2 : 1) * (r.guardPenalty ? 0.5 : 1);
       p.score += points;
-      if (p.score >= (r.players.length === 2 ? 7 : r.players.length === 3 ? 9 : 11)) p.status = 'safe';
+      if (p.score >= (r.players.length === 2 ? 7 : r.players.length === 3 ? 11 : 15)) p.status = 'safe';
       r.turnPoints = (r.turnPoints ?? 0) + points;
       p.earned += points;
     }
@@ -656,9 +662,10 @@ export function act(r: Room, id: string, a: Action) {
       value: c.value,
       skull: !!c.skull,
       angel: !!c.angel,
-      endedTurn: !!c.endTurn || protectedHit || substituted || !!counterResult,
-      burst: counterResult ? counterResult.victim === p.id : hit && !protectedHit && !substituted,
+      endedTurn: !!c.endTurn || protectedHit || substituted || !!counterResult?.victim,
+      burst: counterResult ? counterResult.victim === p.id : hit && !protectedHit && !substituted && !blessingProtected,
       shield: protectedHit,
+      blessing: blessingProtected,
       dudConsumedShield,
       substitute: substituted,
       dud: !!c.dud,
@@ -666,7 +673,7 @@ export function act(r: Room, id: string, a: Action) {
       points,
       finished:p.status==='safe',
     });
-    if (!finishRound(r) && (p.status !== 'alive' || c.endTurn || protectedHit || substituted || counterResult || remaining(q)===0 || q.status === 'safe')) {
+    if (!finishRound(r) && (p.status !== 'alive' || c.endTurn || protectedHit || substituted || !!counterResult?.victim || remaining(q)===0 || q.status === 'safe')) {
       if (c.endTurn) log(r, `${p.name} が終了トラップを引き、ターン終了`);
       if (protectedHit) log(r, `${p.name} はドクロガードで防御しましたが、ドクロを引いたためターン終了`);
       endTurn(r);
@@ -783,7 +790,7 @@ export function act(r: Room, id: string, a: Action) {
         // Both are consumed. The replacement cannot be the sacrificed type.
         const indices = [a.item!, a.sacrifice!].sort((a, b) => b - a);
         for (const i of indices) p.items.splice(i, 1);
-        grantItem(p, sacrificed, r.players.length);
+        grantItem(r, p, sacrificed, r.players.length);
         effect(
           r,
           p.id,
@@ -927,8 +934,8 @@ export function view(r: Room, id: string, presence: Record<string, number>) {
     events: r.events.flatMap(e => {
       if (!e.effect) return [e];
       if (e.effect.by === id && (e.effect.item === 'deal' || ITEMS.includes(e.effect.item as Item))) return [e];
-      if (['reposition','dud','oracle','peek','double','recycle'].includes(e.effect.item)) {
-        const names: Record<string,string> = {reposition:'再配置',dud:'不発弾',oracle:'お告げ',peek:'透視',double:'得点倍化',recycle:'リサイクル'};
+      if (['reposition','dud','oracle','peek','double','recycle','nominate'].includes(e.effect.item)) {
+        const names: Record<string,string> = {reposition:'再配置',dud:'不発弾',oracle:'お告げ',peek:'透視',double:'得点倍化',recycle:'リサイクル',nominate:'指名変更'};
         const text = `${r.players.find(p=>p.id===e.effect!.by)?.name ?? 'プレイヤー'} が「${names[e.effect.item]}」を使用しました`;
         return [{id:e.id,time:e.time,text,effect:{by:e.effect.by,item:'notice' as const,text}}];
       }

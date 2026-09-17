@@ -1,7 +1,7 @@
 'use client';
 import { useCardHover } from '@/lib/use-card-hover';
 import { playSound } from '@/lib/sound';
-import { Skull, OctagonX } from 'lucide-react';
+import { Gift, Skull, OctagonX } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
@@ -24,7 +24,9 @@ import {
   GripVertical,
   Smartphone,
 } from 'lucide-react';
-import type { Item, view } from '@/lib/game';
+import type { Event, Item, view } from '@/lib/game';
+import DiceRoll from '@/components/dice-roll';
+import RouletteRoll from '@/components/roulette-roll';
 import { moveInOrder } from '@/lib/arrangement';
 import { ITEM_INFO } from '@/lib/item-info';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -34,6 +36,9 @@ type Props = {
   busy: boolean;
   resultReady: boolean;
   effect?: {item:string; target?:string};
+  event?: Event;
+  revealStage?: number;
+  turnBanner?: string;
   seconds: number;
   send: (type: string, data?: Record<string, unknown>) => Promise<unknown>;
 };
@@ -57,7 +62,7 @@ export function ItemIcon({ item }: { item: Item }) {
   const Icon = icons[ITEM_INFO[item].icon as keyof typeof icons];
   return <Icon aria-hidden="true" />;
 }
-export default function GameTable({ s, busy, seconds, send, resultReady, effect }: Props) {
+export default function GameTable({ s, busy, seconds, send, resultReady, effect, event, revealStage = 0, turnBanner }: Props) {
   const result = s.results.at(-1);
   const celebrating = resultReady && (s.phase === 'result' || s.phase === 'final');
   const winnerIds = result ? (result.winner ? [result.winner] : result.scores.filter(p => p.score === Math.max(...result.scores.map(q => q.score))).map(p => p.id)) : [];
@@ -412,6 +417,35 @@ export default function GameTable({ s, busy, seconds, send, resultReady, effect 
       {tip&&<div className="card-effect-tooltip" role="status">{tip}</div>}
       <div className="square-slot">
         <section className="square-table" aria-label="正方形のゲーム卓">
+          {s.phase === 'play' && turnBanner && !event && (
+            <div className="screen-overlay turn-intro" role="status">
+              <p className="eyebrow">NEXT TURN</p>
+              <h2>{s.turn === s.me ? 'あなたのターン' : `${turnBanner} のターン`}</h2>
+              <p>アイテムを1個追加。次の一手を決めよう。</p>
+            </div>
+          )}
+          {event?.effect && (
+            <div className={'effect-banner ' + (['dice','shuffle'].includes(event.effect.item) ? 'dice-effect' : '')} role="status">
+              <span className="effect-icon">
+                {['dice','shuffle'].includes(event.effect.item) ? <DiceRoll /> : event.effect.item === 'deal' || event.effect.item === 'notice' ? <Gift /> : <ItemIcon item={event.effect.item as Item} />}
+              </span>
+              <div>
+                <b>{event.effect.item === 'notice' ? 'アイテム使用' : event.effect.item === 'deal' ? 'ITEM +1' : ITEM_INFO[event.effect.item as Item].name}</b>
+                <p>{event.effect.text}</p>
+              </div>
+            </div>
+          )}
+          {event?.draw && (
+            <div className={'screen-overlay draw-reveal ' + (event.draw.burst && revealStage ? 'burst-scene' : '')} role="alert">
+              <p className="eyebrow">{s.players.find((p) => p.id === event.draw?.by)?.name} が引いたカード</p>
+              {event.draw.counter && <RouletteRoll key={event.id} result={event.draw.counter.face} labels={event.draw.counter.options.map(id => id ? (s.players.find(p => p.id === id)?.name ?? 'プレイヤー') : 'セーフ')} />}
+              <div className={`revealed-card${event.draw.angel ? ' angel-reveal' : ''}`} key={revealStage}>
+                <Feather />
+                <b>{event.draw.skull ? <Skull /> : event.draw.angel ? '✦' : event.draw.value}</b>
+              </div>
+              {event.draw.burst ? <><Flame className="burst-flame" /><h2 className="burst-title">BURST</h2><p className="burst-loss">ラウンド獲得枚数 <b>0</b></p><p>このラウンドから脱落</p></> : event.draw.counter ? <h2>{event.draw.counter.victim ? 'ランダムガード · バースト' : 'ランダムガード · ターン続行'}</h2> : event.draw.dud ? <><h2>不発弾</h2><p>バーストなし・獲得枚数なし</p></> : event.draw.finished ? <><h2>確定上がり！</h2><p>目標枚数に到達しました</p></> : <><h2>{event.draw.substitute ? 'バースト回避 · ターン終了' : event.draw.endedTurn && !event.draw.shield ? '終了トラップ · ターン終了' : event.draw.shield ? 'ドクロガード 発動' : event.draw.blessing ? '天使の加護 発動 · ターン続行' : `+${event.draw.points}枚`}</h2>{event.draw.shield && <p>ドクロを防ぎました。このターンの獲得枚数は半分になります。</p>}{event.draw.blessing && <p>バーストを防ぎ、得点減少なしでターンを続行します。</p>}</>}
+            </div>
+          )}
           {celebrating && <div className="round-victory" key={s.round} role="status">
             <span className="victory-crown">♛</span>
             <small>ROUND {s.round} · {result?.draw ? 'DRAW' : winnerIds.length > 1 ? 'WINNERS' : 'WINNER'}</small>
@@ -638,7 +672,7 @@ export default function GameTable({ s, busy, seconds, send, resultReady, effect 
                       ) + 1}
                       . {p.name}
                     </b>
-                    <span>{p.score} / {s.players.length === 2 ? 7 : s.players.length === 3 ? 9 : 11}枚</span>
+                    <span>{p.score} / {s.players.length === 2 ? 7 : s.players.length === 3 ? 11 : 15}枚</span>
                     <small>
                       {p.draws}枚 / 累計 {p.draws}枚
                     </small>
