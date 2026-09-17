@@ -72,6 +72,9 @@ export type Event = {
     substitute?: boolean;
     dud?: boolean;
     blessing?: boolean;
+    initialBurst?: boolean;
+    initialBurstChoice?: boolean;
+    initialBurstContinued?: boolean;
     counter?: {face:number; victim?:string; options:string[]};
     points: number;
     finished?: boolean;
@@ -80,6 +83,7 @@ export type Event = {
 export type Room = {
   rulesVersion?: number;
   blessingPending?: boolean;
+  initialBurst?: { by: string; eventId: string } | null;
   totalRounds?: number;
   turnPoints?: number;
   guardPenalty?: boolean;
@@ -127,6 +131,7 @@ export type Action = {
   sacrifice?: number;
   slots?: number[];
   order?: number[];
+  choice?: 'burst' | 'continue';
   item?: number;
   value?: number;
   text?: string;
@@ -430,6 +435,29 @@ export function act(r: Room, id: string, a: Action) {
   }
   if(a.type==='lobby') { must(r.host===id && r.phase==='final','ホストが結果画面から戻れます');returnToLobby(r);return; }
   const p = member(r, id);
+  if (a.type === 'initialBurstChoice') {
+    must(r.phase === 'play' && r.initialBurst?.by === id, '初手バーストの選択待ちではありません');
+    must(a.choice === 'burst' || a.choice === 'continue', '選択が不正です');
+    const pending = r.initialBurst;
+    const event = r.events.find((item) => item.id === pending.eventId);
+    must(event?.draw?.initialBurstChoice, '初手バーストの選択情報がありません');
+    r.initialBurst = null;
+    if (a.choice === 'burst') {
+      p.status = 'burst';
+      p.score = 0;
+      event.draw.burst = true;
+      event.draw.initialBurstChoice = false;
+      log(r, `${p.name} が初手バーストを選び、ラウンドから脱落しました`);
+    } else {
+      p.score = -3;
+      event.draw.initialBurstChoice = false;
+      event.draw.initialBurstContinued = true;
+      event.draw.endedTurn = true;
+      log(r, `${p.name} が初手バーストを -3点で継続しました`);
+    }
+    if (!finishRound(r)) endTurn(r);
+    return;
+  }
   p.items=p.items.filter(i=>ITEMS.includes(i));
   if (p.items.includes('double') || p.doubled) p.doubleGranted = true;
   must(r.phase !== 'closed', 'ルームは閉じられています');
@@ -596,6 +624,7 @@ export function act(r: Room, id: string, a: Action) {
     let counterResult: {face:number; victim?:string; options:string[]} | undefined;
     let protectedHit = false;
     let blessingProtected = false;
+    let initialBurst = false;
     let substituted = false;
     let dudConsumedShield = false;
     let points = 0;
@@ -642,8 +671,11 @@ export function act(r: Room, id: string, a: Action) {
         points = 0;
         log(r, `${p.name} の天使の加護が発動し、バーストを防ぎました`);
       } else {
-        p.status = 'burst';
-    p.score = 0;
+        initialBurst = p.roundDraws === 1;
+        if (!initialBurst) {
+          p.status = 'burst';
+          p.score = 0;
+        }
       }
     } else if (!c.dud) {
       points = (p.doubled && r.drawnThisTurn === 1 ? 2 : 1) * (r.guardPenalty ? 0.5 : 1);
@@ -666,6 +698,8 @@ export function act(r: Room, id: string, a: Action) {
       burst: counterResult ? counterResult.victim === p.id : hit && !protectedHit && !substituted && !blessingProtected,
       shield: protectedHit,
       blessing: blessingProtected,
+      initialBurst,
+      initialBurstChoice: initialBurst,
       dudConsumedShield,
       substitute: substituted,
       dud: !!c.dud,
@@ -673,6 +707,11 @@ export function act(r: Room, id: string, a: Action) {
       points,
       finished:p.status==='safe',
     });
+    if (initialBurst) {
+      const event = r.events.at(-1)!;
+      r.initialBurst = { by: p.id, eventId: event.id };
+      return;
+    }
     if (!finishRound(r) && (p.status !== 'alive' || c.endTurn || protectedHit || substituted || !!counterResult?.victim || remaining(q)===0 || q.status === 'safe')) {
       if (c.endTurn) log(r, `${p.name} が終了トラップを引き、ターン終了`);
       if (protectedHit) log(r, `${p.name} はドクロガードで防御しましたが、ドクロを引いたためターン終了`);
@@ -802,7 +841,7 @@ export function act(r: Room, id: string, a: Action) {
     }
     p.items.splice(a.item!, 1);
     effect(r, p.id, item, description, q?.id);
-    if (p.score >= (r.players.length === 2 ? 7 : r.players.length === 3 ? 9 : 11)) {
+    if (p.score >= (r.players.length === 2 ? 7 : r.players.length === 3 ? 11 : 15)) {
       p.status = 'safe';
       if (!finishRound(r)) endTurn(r);
     }
@@ -850,6 +889,7 @@ export function tick(r: Room, presence: Record<string, number>, time = now()) {
   }
   if (r.phase === 'play') {
     const p = member(r, r.turn);
+    if (r.initialBurst) return changed;
     if (time >= r.deadline && (r.drawnThisTurn > 0 || !nominees(r,p).length)) {
       endTurn(r); return true;
     }
