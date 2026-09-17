@@ -191,7 +191,7 @@ export default function Home() {
     announcedTurn.current=key;playSound('turn');
     setTurnBanner(s.players.find(p=>p.id===s.turn)?.name||'');
   },[s?.phase,s?.turnSerial,s?.turn,queue.length,ngIntro]);
-  useEffect(()=>{if(!turnBanner)return;const timer=setTimeout(()=>setTurnBanner(''),4000);return()=>clearTimeout(timer);},[turnBanner]);
+  useEffect(()=>{if(!turnBanner)return;const timer=setTimeout(()=>setTurnBanner(''),1500);return()=>clearTimeout(timer);},[turnBanner]);
   useEffect(() => {
     if (!s) return;
     const added: Event[] = [];
