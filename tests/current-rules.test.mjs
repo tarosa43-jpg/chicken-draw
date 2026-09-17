@@ -16,6 +16,10 @@ function draw(r,id='a',slot=0,target='b') {
  if(!r.chosenTarget)act(r,id,{type:'nominate',target});
  act(r,id,{type:'draw',target,slot});
 }
+function forceSkullDraw(r, id='a', target='b') {
+ r.players.find(p=>p.id===target).hand[0]={value:0,skull:true};
+ draw(r,id,0,target);
+}
 test('two players: seventh angel immediately wins; second round starts from zero',()=>{
  const r=game();for(let i=0;i<7;i++)draw(r,'a',i);
  assert.equal(r.phase,'result');assert.equal(r.results[0].winner,'a');
@@ -25,6 +29,20 @@ test('two players: seventh angel immediately wins; second round starts from zero
  tick(r,Object.fromEntries(r.players.map(p=>[p.id,r.deadline])),r.deadline);
  r.turn='a';r.chosenTarget=null;r.players[1].hand[0]={value:0,angel:true};draw(r);
  assert.equal(r.phase,'play');assert.equal(r.players[0].score,1);
+});
+test('first skull can continue at -3 and the next turn has no extra protection',()=>{
+ const r=game(3);const p=r.players[0];forceSkullDraw(r);
+ assert.equal(r.initialBurst.by,'a');assert.equal(p.status,'alive');assert.equal(p.score,0);
+ act(r,'a',{type:'initialBurstChoice',choice:'continue'});
+ assert.equal(p.score,-3);assert.equal(p.status,'alive');assert.notEqual(r.turn,'a');
+ r.turn='a';r.chosenTarget=null;r.deadline=Date.now()+120000;r.players[1].hand[1]={value:0,skull:true};
+ draw(r,'a',1,'b');
+ assert.equal(p.status,'burst');
+});
+test('first skull can choose the normal burst result',()=>{
+ const r=game(3);const p=r.players[0];forceSkullDraw(r);
+ act(r,'a',{type:'initialBurstChoice',choice:'burst'});
+ assert.equal(p.status,'burst');assert.equal(p.score,0);assert.equal(r.initialBurst,null);
 });
 test('double applies only to the first angel drawn after activation',()=>{
  const r=game(3);const p=r.players[0];p.items=['double'];
