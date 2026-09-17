@@ -695,7 +695,7 @@ export function act(r: Room, id: string, a: Action) {
       skull: !!c.skull,
       angel: !!c.angel,
       endedTurn: !!c.endTurn || protectedHit || substituted || !!counterResult?.victim,
-      burst: counterResult ? counterResult.victim === p.id : hit && !protectedHit && !substituted && !blessingProtected,
+      burst: counterResult ? counterResult.victim === p.id : hit && !initialBurst && !protectedHit && !substituted && !blessingProtected,
       shield: protectedHit,
       blessing: blessingProtected,
       initialBurst,
